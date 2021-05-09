@@ -52,6 +52,7 @@ class ListHomeView extends StatefulWidget {
 class _ListHomeViewState extends State<ListHomeView>
     with SingleTickerProviderStateMixin {
   late AnimationController dragController;
+  late ScrollController scrollController = ScrollController();
   List<int> emails = List.generate(20, (i) => i);
   int? draggedIdx;
   int? dragOffset;
@@ -116,10 +117,48 @@ class _ListHomeViewState extends State<ListHomeView>
     return items;
   }
 
+  Widget _getSwipeActionIndicator() {
+    if (!scrollController.hasClients ||
+        draggedIdx == null ||
+        dragOffset == null) {
+      return Container();
+    }
+
+    double topPixelOffset =
+        (min(draggedIdx!, draggedIdx! + dragOffset!) * LIST_ITEM_HEIGHT) -
+            scrollController.offset;
+    double bottomPixelOffset =
+        ((max(draggedIdx!, draggedIdx! + dragOffset!) + 1) * LIST_ITEM_HEIGHT) -
+            scrollController.offset;
+    if (dragController.value > 0) {
+      return Positioned(
+          left: 0,
+          width: dragController.value,
+          top: topPixelOffset,
+          height: bottomPixelOffset - topPixelOffset,
+          child: Container(
+              child: Icon(Icons.archive, color: Colors.white),
+              color: Colors.green));
+    }
+    return Positioned(
+        right: 0,
+        width: dragController.value.abs(),
+        top: topPixelOffset,
+        height: bottomPixelOffset - topPixelOffset,
+        child: Container(
+            child: Icon(Icons.delete, color: Colors.white), color: Colors.red));
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      children: _getListItems(),
+    return Stack(
+      children: [
+        _getSwipeActionIndicator(),
+        ListView(
+          controller: scrollController,
+          children: _getListItems(),
+        ),
+      ],
     );
   }
 }
