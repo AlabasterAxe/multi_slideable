@@ -54,6 +54,7 @@ class _ListHomeViewState extends State<ListHomeView>
   late AnimationController dragController;
   late ScrollController scrollController = ScrollController();
   List<int> emails = List.generate(20, (i) => i);
+  double actionThresholdRatio = .2;
   int? draggedIdx;
   int? dragOffset;
 
@@ -61,6 +62,61 @@ class _ListHomeViewState extends State<ListHomeView>
   void initState() {
     super.initState();
     dragController = AnimationController.unbounded(vsync: this);
+  }
+
+  void _clearDragIndices(AnimationStatus status) {
+    if (status == AnimationStatus.completed) {
+      draggedIdx = null;
+      dragOffset = null;
+    }
+    dragController.removeStatusListener(_clearDragIndices);
+  }
+
+  void _removeItems(AnimationStatus status) {
+    if (status == AnimationStatus.completed) {
+      if (draggedIdx == null || dragOffset == null) {
+        draggedIdx = null;
+        dragOffset = null;
+        return;
+      }
+      int topIdx = min(draggedIdx!, draggedIdx! + dragOffset!);
+      int bottomIdx = max(draggedIdx!, draggedIdx! + dragOffset!);
+      emails.removeRange(topIdx, bottomIdx + 1);
+
+      draggedIdx = null;
+      dragOffset = null;
+      setState(() {});
+      dragController.removeStatusListener(_removeItems);
+      dragController.value = 0;
+    }
+  }
+
+  void _animateDragEnd() {
+    double screenWidth = MediaQuery.of(context).size.width;
+
+    if (dragController.value.abs() < screenWidth * actionThresholdRatio) {
+      dragController.animateTo(
+        0,
+        duration: Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+      dragController.addStatusListener(_clearDragIndices);
+    } else {
+      if (dragController.value > 0) {
+        dragController.animateTo(
+          screenWidth,
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      } else {
+        dragController.animateTo(
+          -screenWidth,
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+      dragController.addStatusListener(_removeItems);
+    }
   }
 
   List<Widget> _getListItems() {
@@ -92,9 +148,7 @@ class _ListHomeViewState extends State<ListHomeView>
                     });
                   },
                   onHorizontalDragEnd: (DragEndDetails deets) {
-                    dragController.value = 0;
-                    draggedIdx = null;
-                    dragOffset = null;
+                    _animateDragEnd();
                   },
                   child: getTileItem(emails[i])),
             );
@@ -131,22 +185,31 @@ class _ListHomeViewState extends State<ListHomeView>
         ((max(draggedIdx!, draggedIdx! + dragOffset!) + 1) * LIST_ITEM_HEIGHT) -
             scrollController.offset;
     if (dragController.value > 0) {
-      return Positioned(
-          left: 0,
-          width: dragController.value,
-          top: topPixelOffset,
-          height: bottomPixelOffset - topPixelOffset,
-          child: Container(
-              child: Icon(Icons.archive, color: Colors.white),
-              color: Colors.green));
+      return AnimatedBuilder(
+          animation: dragController,
+          builder: (context, child) {
+            return Positioned(
+                left: 0,
+                width: dragController.value,
+                top: topPixelOffset,
+                height: bottomPixelOffset - topPixelOffset,
+                child: Container(
+                    child: Icon(Icons.archive, color: Colors.white),
+                    color: Colors.green));
+          });
     }
-    return Positioned(
-        right: 0,
-        width: dragController.value.abs(),
-        top: topPixelOffset,
-        height: bottomPixelOffset - topPixelOffset,
-        child: Container(
-            child: Icon(Icons.delete, color: Colors.white), color: Colors.red));
+    return AnimatedBuilder(
+        animation: dragController,
+        builder: (context, snapshot) {
+          return Positioned(
+              right: 0,
+              width: dragController.value.abs(),
+              top: topPixelOffset,
+              height: bottomPixelOffset - topPixelOffset,
+              child: Container(
+                  child: Icon(Icons.delete, color: Colors.white),
+                  color: Colors.red));
+        });
   }
 
   @override
